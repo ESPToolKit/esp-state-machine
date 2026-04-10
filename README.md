@@ -4,6 +4,11 @@ ESPStateMachine is a typed, flat finite-state machine helper for ESP32 firmware.
 
 `ESPLifecycle` answers "what should initialize or deinitialize, and in what order?" ESPStateMachine answers "what runtime state is this feature in, and which event is allowed to move it next?"
 
+## CI / Release / License
+[![CI](https://github.com/ESPToolKit/esp-state-machine/actions/workflows/ci.yml/badge.svg)](https://github.com/ESPToolKit/esp-state-machine/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/ESPToolKit/esp-state-machine?sort=semver)](https://github.com/ESPToolKit/esp-state-machine/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE.md)
+
 ## Features
 - Typed enum states and events via `ESPStateMachine<State, Event>`.
 - Flat finite-state machine with one active state.
@@ -158,17 +163,57 @@ void setup() {
 - `examples/eventbus_bridge`
 - `examples/logger_trace`
 
-## Testing
-Host-side CMake tests cover the core and adapter compile behavior with small stubs:
+## API Summary
+- `bool begin(State initialState)` / `void end()` / `bool isStarted() const`
+- `bool addTransition(State from, Event event, State to, TransitionOptions<State, Event> options = {})`
+- `StateMachineDispatchResult<State, Event> dispatch(Event event, void* payload = nullptr)`
+- `State currentState() const` / `StateMachineSnapshot<State> snapshot() const`
+- `bool hasTransition(Event event) const`
+- `StateMachineCallbackId onEnter(State state, StateCallback callback)`
+- `StateMachineCallbackId onExit(State state, StateCallback callback)`
+- `StateMachineCallbackId onTransition(TransitionObserver callback)`
+- `StateMachineCallbackId onRejected(RejectedObserver callback)`
+- `bool offCallback(StateMachineCallbackId callbackId)`
+
+## Standalone CMake
+```cmake
+include(FetchContent)
+
+FetchContent_Declare(
+  esp_state_machine
+  GIT_REPOSITORY https://github.com/ESPToolKit/esp-state-machine.git
+  GIT_TAG main
+)
+
+FetchContent_MakeAvailable(esp_state_machine)
+
+target_link_libraries(your_target PRIVATE ESPStateMachine::esp_state_machine)
+```
+
+If the source is vendored locally, `add_subdirectory(path/to/esp-state-machine)` exposes the same `ESPStateMachine::esp_state_machine` target.
+
+## Tests
+- Host-side tests in `test/test_esp_state_machine` cover the core and adapter compile behavior with small stubs.
+- CI also builds the Arduino examples through both PlatformIO and Arduino CLI on the standard ESP32 board matrix.
+
 ```bash
 cmake -S . -B build
 cmake --build build
 ctest --test-dir build
 ```
 
+## Formatting Baseline
+
+This repository follows the firmware formatting baseline from `esptoolkit-template`:
+- `.clang-format` is the source of truth for C/C++/INO layout.
+- `.editorconfig` enforces tabs (`tab_width = 4`), LF endings, and final newline.
+- Format all tracked firmware sources with `bash scripts/format_cpp.sh`.
+
 ## License
 MIT - see [LICENSE.md](LICENSE.md).
 
 ## ESPToolKit
-- Repositories: <https://github.com/orgs/ESPToolKit/repositories>
-- Website: <https://www.esptoolkit.hu/>
+- Check out other libraries: <https://github.com/orgs/ESPToolKit/repositories>
+- Hang out on Discord: <https://discord.gg/WG8sSqAy>
+- Support the project: <https://ko-fi.com/esptoolkit>
+- Visit the website: <https://www.esptoolkit.hu/>
