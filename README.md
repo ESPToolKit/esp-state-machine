@@ -89,7 +89,11 @@ For a successful dispatch:
 4. Entry callbacks for the target state.
 5. Machine-level transition observers.
 
-`begin(initialState)` invokes entry callbacks for the initial state with `bootstrap=true`. `end()` invokes exit callbacks for the current state with `shutdown=true`.
+`begin(initialState)` invokes entry callbacks for the initial state with `bootstrap=true`. `end()` invokes exit callbacks for the current state with `shutdown=true`. If `end()` is requested from inside a callback, shutdown is deferred until the active callback chain completes.
+
+## Runtime Cost
+- Dispatch scans registered transitions linearly, and callback/observer invocation scans the registered callback lists linearly.
+- Guards, actions, state callbacks, transition observers, and rejection observers are stored as `std::function`; prefer registering them during setup and keep captures small on memory-constrained targets.
 
 ## Optional Adapters
 ### EventBus Bridge

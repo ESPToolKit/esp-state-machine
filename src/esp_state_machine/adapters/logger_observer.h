@@ -47,7 +47,12 @@ template <typename State, typename Event> class ESPStateMachineLoggerObserver {
 			);
 		}
 
-		return transitionCallbackId_ != 0 && (!options_.logRejected || rejectedCallbackId_ != 0);
+		if (transitionCallbackId_ == 0 || (options_.logRejected && rejectedCallbackId_ == 0)) {
+			detach();
+			return false;
+		}
+
+		return true;
 	}
 
 	void detach() {

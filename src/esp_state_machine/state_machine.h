@@ -167,6 +167,7 @@ template <typename State, typename Event> class ESPStateMachine {
 		previousState_ = initialState;
 		lastStatus_ = StateMachineDispatchStatus::NotStarted;
 		sequence_ = 0;
+		stopPending_ = false;
 		started_ = true;
 
 		dispatching_ = true;
@@ -175,27 +176,23 @@ template <typename State, typename Event> class ESPStateMachine {
 		context.otherState = initialState;
 		context.bootstrap = true;
 		invokeStateCallbacks(enterCallbacks_, initialState, context);
-		dispatching_ = false;
+		completeCallbackRun();
 
 		return true;
 	}
 
 	void end() {
-		if (!started_ || dispatching_) {
-			started_ = false;
+		if (!started_) {
+			stopPending_ = false;
 			return;
 		}
 
-		dispatching_ = true;
-		StateCallbackContext<State, Event> context{};
-		context.state = currentState_;
-		context.otherState = currentState_;
-		context.sequence = sequence_;
-		context.shutdown = true;
-		invokeStateCallbacks(exitCallbacks_, currentState_, context);
-		dispatching_ = false;
+		if (dispatching_) {
+			stopPending_ = true;
+			return;
+		}
 
-		started_ = false;
+		runShutdownCallbacks();
 	}
 
 	bool isStarted() const {
@@ -305,7 +302,7 @@ template <typename State, typename Event> class ESPStateMachine {
 			result.status = StateMachineDispatchStatus::Transitioned;
 			result.transitioned = true;
 			setLastDispatch(event, result.status);
-			dispatching_ = false;
+			completeCallbackRun();
 			return result;
 		}
 
@@ -321,7 +318,7 @@ template <typename State, typename Event> class ESPStateMachine {
 		rejected.status = result.status;
 		invokeRejectedObservers(rejected);
 
-		dispatching_ = false;
+		completeCallbackRun();
 		return result;
 	}
 
@@ -431,6 +428,34 @@ template <typename State, typename Event> class ESPStateMachine {
 		lastStatus_ = status;
 	}
 
+	void completeCallbackRun() {
+		dispatching_ = false;
+		if (stopPending_) {
+			runShutdownCallbacks();
+		}
+	}
+
+	void runShutdownCallbacks() {
+		if (!started_) {
+			stopPending_ = false;
+			return;
+		}
+
+		stopPending_ = false;
+		dispatching_ = true;
+
+		StateCallbackContext<State, Event> context{};
+		context.state = currentState_;
+		context.otherState = currentState_;
+		context.sequence = sequence_;
+		context.shutdown = true;
+		invokeStateCallbacks(exitCallbacks_, currentState_, context);
+
+		dispatching_ = false;
+		stopPending_ = false;
+		started_ = false;
+	}
+
 	std::vector<TransitionEntry> transitions_{};
 	std::vector<StateCallbackEntry> enterCallbacks_{};
 	std::vector<StateCallbackEntry> exitCallbacks_{};
@@ -445,4 +470,5 @@ template <typename State, typename Event> class ESPStateMachine {
 	StateMachineCallbackId nextCallbackId_ = 1;
 	bool started_ = false;
 	bool dispatching_ = false;
+	bool stopPending_ = false;
 };
