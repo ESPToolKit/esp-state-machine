@@ -1,0 +1,123 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: release-${{ github.ref }}
+      cancel-in-progress: false
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Wait for CI workflow success
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const targetSha = context.sha;
+            const targetRef = context.ref;
+            const targetTag = targetRef.replace('refs/tags/', '');
+            const workflowId = 'ci.yml';
+            const pollMs = 20000;
+            const timeoutMs = 45 * 60 * 1000;
+            const startedAt = Date.now();
+            const failingConclusions = new Set(['failure', 'cancelled', 'timed_out', 'action_required']);
+
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+            core.info(`Waiting for CI workflow (${workflowId}) success on ${targetRef} (${targetSha})`);
+
+            while (true) {
+              const { data } = await github.rest.actions.listWorkflowRuns({
+                owner,
+                repo,
+                workflow_id: workflowId,
+                event: 'push',
+                head_sha: targetSha,
+                per_page: 100,
+              });
+
+              const matchingRuns = data.workflow_runs
+                .filter((run) => {
+                  if (typeof run.head_branch === 'string' && run.head_branch.length > 0) {
+                    return run.head_branch === targetTag;
+                  }
+
+                  return run.head_sha === targetSha;
+                })
+                .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+              if (matchingRuns.length > 0) {
+                const run = matchingRuns[0];
+                core.info(
+                  `Found CI run #${run.run_number}: head_branch=${run.head_branch ?? 'n/a'}, status=${run.status}, conclusion=${run.conclusion ?? 'n/a'}`
+                );
+
+                if (run.status === 'completed') {
+                  if (run.conclusion === 'success') {
+                    core.info(`CI succeeded for ${targetTag}. Continuing release.`);
+                    return;
+                  }
+
+                  if (failingConclusions.has(run.conclusion)) {
+                    core.setFailed(`CI did not succeed for ${targetTag}. Conclusion: ${run.conclusion}.`);
+                    return;
+                  }
+
+                  core.setFailed(`CI completed without success for ${targetTag}. Conclusion: ${run.conclusion ?? 'unknown'}.`);
+                  return;
+                }
+              } else {
+                core.info('CI run for this tag is not visible yet. Waiting...');
+              }
+
+              if (Date.now() - startedAt >= timeoutMs) {
+                core.setFailed(`Timed out after ${timeoutMs / 60000} minutes waiting for successful CI on ${targetTag}.`);
+                return;
+              }
+
+              await sleep(pollMs);
+            }
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract changelog entry
+        id: changelog
+        uses: actions/github-script@v7
+        with:
+          result-encoding: string
+          script: |
+            const tag = process.env.GITHUB_REF_NAME || '';
+            const version = tag.startsWith('v') ? tag.slice(1) : tag;
+            const fs = require('node:fs');
+            const changelog = fs.readFileSync('CHANGELOG.md', 'utf8');
+            const heading = `## [${version}]`;
+            const start = changelog.indexOf(heading);
+            let entry;
+            if (start === -1) {
+              entry = `No changelog entry found for version ${version}.`;
+            } else {
+              const afterHeading = start + heading.length;
+              const nextHeader = changelog.indexOf('\n## [', afterHeading);
+              const sliceEnd = nextHeader === -1 ? changelog.length : nextHeader;
+              entry = changelog.slice(start, sliceEnd).trim();
+            }
+            return entry;
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          prerelease: false
+          generate_release_notes: false
+          body: ${{ steps.changelog.outputs.result }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

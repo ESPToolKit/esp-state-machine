@@ -1,0 +1,39 @@
+{
+  "name": "ESPStateMachine",
+  "version": "0.1.0",
+  "description": "Typed flat finite-state machine helper for ESP32 firmware runtime behavior.",
+  "keywords": [
+    "esp32",
+    "arduino",
+    "state-machine",
+    "fsm",
+    "workflow",
+    "embedded"
+  ],
+  "homepage": "https://github.com/ESPToolKit/esp-state-machine",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ESPToolKit/esp-state-machine.git"
+  },
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "zekageri"
+    }
+  ],
+  "frameworks": [
+    "arduino"
+  ],
+  "platforms": [
+    "espressif32"
+  ],
+  "dependencies": [],
+  "headers": [
+    "ESPStateMachine.h"
+  ],
+  "build": {
+    "flags": [
+      "-std=gnu++17"
+    ]
+  }
+}
