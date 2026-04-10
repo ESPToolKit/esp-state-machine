@@ -107,6 +107,13 @@ jobs:
       - name: Set up Arduino CLI
         uses: arduino/setup-arduino-cli@v1
 
+      - name: Configure Arduino CLI
+        run: |
+          set -e
+          arduino-cli config init --overwrite
+          arduino-cli config set library.enable_unsafe_install true
+          arduino-cli config dump
+
       - name: Install ESP32 core
         run: |
           arduino-cli core update-index
